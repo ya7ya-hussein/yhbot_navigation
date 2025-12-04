@@ -1,11 +1,14 @@
+import os
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
+# Get the directory where this file is located
+YHBOT_ASSETS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 YHBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/home/yahya/Documents/fyp/yhbot_navigation/source/yhbot_navigation/yhbot_navigation/tasks/manager_based/yhbot_navigation/assets/yh-bot.usd",
+        usd_path=f"{YHBOT_ASSETS_DIR}/yh-bot.usd",  # Relative path to USD file
         activate_contact_sensors=True,  
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -45,8 +48,8 @@ YHBOT_CFG = ArticulationCfg(
         # Differential drive wheels 
         "base_wheels": ImplicitActuatorCfg(
             joint_names_expr=["middle_.*_wheel_joint"],  
-            effort_limit=20000.0,  
-            velocity_limit=5.0,  
+            effort_limit_sim=20000.0,  # Use _sim suffix
+            velocity_limit_sim=5.0,     # Use _sim suffix
             stiffness=0.0,  
             damping=10000000.0,  
         ),

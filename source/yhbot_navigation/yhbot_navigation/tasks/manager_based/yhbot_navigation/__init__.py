@@ -1,3 +1,4 @@
+# source/yhbot_navigation/yhbot_navigation/tasks/manager_based/yhbot_navigation/init.py
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -13,7 +14,7 @@ from . import agents
 
 
 gym.register(
-    id="Template-Yhbot-Navigation-v0",
+    id="Isaac-Navigation-Grid-YHBot-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

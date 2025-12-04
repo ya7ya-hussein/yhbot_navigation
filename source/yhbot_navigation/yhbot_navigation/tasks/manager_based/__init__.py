@@ -1,6 +1,7 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
-#
 # SPDX-License-Identifier: BSD-3-Clause
 
-import gymnasium as gym  # noqa: F401
+"""Package containing manager-based task implementations."""
+
+from .yhbot_navigation import *  # ← ADD THIS LINE
