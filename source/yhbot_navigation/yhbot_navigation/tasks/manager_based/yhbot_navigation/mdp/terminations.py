@@ -40,11 +40,11 @@ def is_goal_reached(
     """
     # Get goal position from command manager
     goal_command = env.command_manager.get_command(command_name)
-    goal_pos_w = goal_command[:, :2]  # (num_envs, 2) - [x, y]
+    goal_pos_w = goal_command[:, :2]  
     
     # Get robot position
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+    robot_pos_w = robot.data.root_pos_w[:, :2]  
     
     # Compute distance to goal
     distance = torch.norm(goal_pos_w - robot_pos_w, dim=-1)
@@ -104,7 +104,7 @@ def is_robot_flipped(
     """
     # Get robot orientation
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_quat_w = robot.data.root_quat_w  # (num_envs, 4) - [w, x, y, z]
+    robot_quat_w = robot.data.root_quat_w  
     
     # Extract z-component of robot's up vector
     # Up vector in body frame is [0, 0, 1]
@@ -138,17 +138,17 @@ def is_out_of_bounds(
     """
     # Get robot position
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  # (num_envs, 2) - [x, y]
+    robot_pos_w = robot.data.root_pos_w[:, :2]  
     
     # Unpack bounds
     min_x, max_x, min_y, max_y = bounds
     
     # Check if out of bounds
     out_of_bounds = (
-        (robot_pos_w[:, 0] < min_x) |  # x < min_x
-        (robot_pos_w[:, 0] > max_x) |  # x > max_x
-        (robot_pos_w[:, 1] < min_y) |  # y < min_y
-        (robot_pos_w[:, 1] > max_y)    # y > max_y
+        (robot_pos_w[:, 0] < min_x) | 
+        (robot_pos_w[:, 0] > max_x) | 
+        (robot_pos_w[:, 1] < min_y) |  
+        (robot_pos_w[:, 1] > max_y)    
     )
     
     return out_of_bounds
@@ -176,10 +176,10 @@ def is_stuck(
     """
     # Get robot velocity
     robot: Articulation = env.scene[asset_cfg.name]
-    lin_vel = robot.data.root_lin_vel_w  # (num_envs, 3)
+    lin_vel = robot.data.root_lin_vel_w  
     
     # Compute speed (magnitude of velocity)
-    speed = torch.norm(lin_vel[:, :2], dim=-1)  # Only x, y velocity
+    speed = torch.norm(lin_vel[:, :2], dim=-1)  
     
     # Initialize stuck counter if not exists
     if not hasattr(env, "_stuck_counter"):
@@ -188,7 +188,7 @@ def is_stuck(
     # Update stuck counter
     is_moving_slowly = speed < threshold
     env._stuck_counter[is_moving_slowly] += env.step_dt
-    env._stuck_counter[~is_moving_slowly] = 0.0  # Reset counter if moving
+    env._stuck_counter[~is_moving_slowly] = 0.0  
     
     # Return True if stuck for too long
     return env._stuck_counter > time_threshold

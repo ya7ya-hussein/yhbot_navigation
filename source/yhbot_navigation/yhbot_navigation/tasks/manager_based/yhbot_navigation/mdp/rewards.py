@@ -40,11 +40,11 @@ def goal_reached_bonus(
     """
     # Get goal position from command manager
     goal_command = env.command_manager.get_command(command_name)
-    goal_pos_w = goal_command[:, :2]  # (num_envs, 2) - [x, y]
+    goal_pos_w = goal_command[:, :2]  
     
     # Get robot position
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+    robot_pos_w = robot.data.root_pos_w[:, :2]  
     
     # Compute distance to goal
     distance = torch.norm(goal_pos_w - robot_pos_w, dim=-1)
@@ -73,11 +73,11 @@ def progress_to_goal(
     """
     # Get goal position from command manager
     goal_command = env.command_manager.get_command(command_name)
-    goal_pos_w = goal_command[:, :2]  # (num_envs, 2)
+    goal_pos_w = goal_command[:, :2]  
     
     # Get robot position
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+    robot_pos_w = robot.data.root_pos_w[:, :2]  
     
     # Compute current distance
     current_distance = torch.norm(goal_pos_w - robot_pos_w, dim=-1)
@@ -147,17 +147,17 @@ def heading_alignment_to_goal(
     """
     # Get goal position from command manager
     goal_command = env.command_manager.get_command(command_name)
-    goal_pos_w = goal_command[:, :2]  # (num_envs, 2)
+    goal_pos_w = goal_command[:, :2]  
     
     # Get robot state
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
-    robot_quat_w = robot.data.root_quat_w  # (num_envs, 4) - [w, x, y, z]
+    robot_pos_w = robot.data.root_pos_w[:, :2]  
+    robot_quat_w = robot.data.root_quat_w  
     
     # Compute direction to goal (normalized)
     direction_to_goal = goal_pos_w - robot_pos_w
     distance = torch.norm(direction_to_goal, dim=-1, keepdim=True)
-    direction_to_goal = direction_to_goal / (distance + 1e-6)  # Normalize
+    direction_to_goal = direction_to_goal / (distance + 1e-6)  
     
     # Extract robot heading from quaternion (yaw angle)
     # yaw = atan2(2*(w*z + x*y), 1 - 2*(y^2 + z^2))
@@ -223,7 +223,7 @@ def orientation_penalty(
     """
     # Get robot orientation
     robot: Articulation = env.scene[asset_cfg.name]
-    robot_quat_w = robot.data.root_quat_w  # (num_envs, 4) - [w, x, y, z]
+    robot_quat_w = robot.data.root_quat_w  
     
     # Extract roll and pitch from quaternion
     w, x, y, z = robot_quat_w[:, 0], robot_quat_w[:, 1], robot_quat_w[:, 2], robot_quat_w[:, 3]
@@ -258,7 +258,7 @@ def linear_velocity_penalty(
     """
     # Get robot velocity
     robot: Articulation = env.scene[asset_cfg.name]
-    lin_vel = robot.data.root_lin_vel_w  # (num_envs, 3)
+    lin_vel = robot.data.root_lin_vel_w  
     
     # Compute speed (magnitude of velocity)
     speed = torch.norm(lin_vel, dim=-1)
@@ -286,7 +286,7 @@ def angular_velocity_penalty(
     """
     # Get robot angular velocity
     robot: Articulation = env.scene[asset_cfg.name]
-    ang_vel = robot.data.root_ang_vel_w  # (num_envs, 3)
+    ang_vel = robot.data.root_ang_vel_w  
     
     # We only care about yaw rate (rotation around z-axis)
     yaw_rate = ang_vel[:, 2]

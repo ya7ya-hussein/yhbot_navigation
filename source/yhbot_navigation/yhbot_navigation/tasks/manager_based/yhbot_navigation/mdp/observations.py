@@ -27,13 +27,13 @@ def lidar_obs(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg = SceneEntityCf
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
     
     # Get ray hit distances
-    # ray_hits_w shape: (num_envs, num_rays, 3) - hit positions in world frame
+    # ray_hits_w shape: (num_envs, num_rays, 3) 
     # Calculate distance from sensor origin to hit point
-    ray_origins = sensor.data.pos_w.unsqueeze(1)  # (num_envs, 1, 3)
-    ray_hits = sensor.data.ray_hits_w  # (num_envs, num_rays, 3)
+    ray_origins = sensor.data.pos_w.unsqueeze(1)  
+    ray_hits = sensor.data.ray_hits_w  
     
     # Compute distances
-    distances = torch.norm(ray_hits - ray_origins, dim=-1)  # (num_envs, num_rays)
+    distances = torch.norm(ray_hits - ray_origins, dim=-1)
     
     # Handle inf values (no hit) - replace with max distance
     distances = torch.where(torch.isinf(distances), torch.tensor(sensor.cfg.max_distance, device=env.device), distances)
@@ -69,13 +69,13 @@ def goal_position_robot_frame(env: ManagerBasedRLEnv, command_name: str = "goal_
     Shape: (num_envs, 2)
     """
     # Get goal command from command manager
-    goal_command = env.command_manager.get_command(command_name)  # (num_envs, 3) - [x, y, heading]
-    goal_pos_world = goal_command[:, :2]  # (num_envs, 2) - only x, y ✅ SLICE IT!
+    goal_command = env.command_manager.get_command(command_name) 
+    goal_pos_world = goal_command[:, :2]  
     
     # Get robot state
     robot: Articulation = env.scene["robot"]
-    robot_pos = robot.data.root_pos_w[:, :2]  # (num_envs, 2) - [x, y] in world
-    robot_quat = robot.data.root_quat_w  # (num_envs, 4) - [w, x, y, z]
+    robot_pos = robot.data.root_pos_w[:, :2]  
+    robot_quat = robot.data.root_quat_w  
     
     # Compute relative position in world frame
     goal_rel_world = goal_pos_world - robot_pos  # (num_envs, 2)
@@ -104,12 +104,12 @@ def distance_to_goal(env: ManagerBasedRLEnv, command_name: str = "goal_command")
     Shape: (num_envs, 1)
     """
     # Get goal command from command manager
-    goal_command = env.command_manager.get_command(command_name)  # (num_envs, 3) - [x, y, heading]
-    goal_pos_world = goal_command[:, :2]  # (num_envs, 2) - only x, y ✅ SLICE IT!
+    goal_command = env.command_manager.get_command(command_name) 
+    goal_pos_world = goal_command[:, :2]  
     
     # Get robot position
     robot: Articulation = env.scene["robot"]
-    robot_pos = robot.data.root_pos_w[:, :2]  # (num_envs, 2)
+    robot_pos = robot.data.root_pos_w[:, :2]  
     
     # Compute distance
     distance = torch.norm(goal_pos_world - robot_pos, dim=-1, keepdim=True)

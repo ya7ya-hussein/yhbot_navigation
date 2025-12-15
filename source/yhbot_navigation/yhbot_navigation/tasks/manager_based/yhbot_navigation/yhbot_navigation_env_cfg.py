@@ -25,7 +25,7 @@ from . import mdp
 ##
 
 # Import YHBot robot configuration from assets folder
-from .assets.yh_bot_cfg import YHBOT_CFG  # isort:skip
+from .assets.yh_bot_cfg import YHBOT_CFG  
 
 
 ##
@@ -55,14 +55,14 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
 
     # LiDAR sensor - 360 rays, 360Â° coverage, 10m range
     lidar = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_footprint/base_link",
+        prim_path="{ENV_REGEX_NS}/Robot/chassis_link",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.2)),
         ray_alignment="yaw",  
         pattern_cfg=patterns.LidarPatternCfg(
             channels=1,
             vertical_fov_range=(0.0, 0.0),
             horizontal_fov_range=(-179.5, 180.0), 
-            horizontal_res=1.0,
+            horizontal_res=10.0,
         ),
         max_distance=10.0,
         drift_range=(0.0, 0.0),
@@ -93,7 +93,7 @@ class ActionsCfg:
     joint_velocity = mdp.JointVelocityActionCfg(
         asset_name="robot",
         joint_names=["middle_left_wheel_joint", "middle_right_wheel_joint"],
-        scale=10,  # Max velocity: Â±0.5 m/s per wheel
+        scale=10,  
         use_default_offset=False,
     )
 
@@ -113,17 +113,17 @@ class ObservationsCfg:
         )
         
         # Robot velocities in base frame
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)  # 3D linear velocity
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)  # 3D angular velocity
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)  
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)  
         
         # Goal information 
         goal_position_robot_frame = ObsTerm(
             func=mdp.goal_position_robot_frame,
-            params={"command_name": "goal_pose"}  # ✅ Matches CommandsCfg
+            params={"command_name": "goal_pose"} 
         )
         distance_to_goal = ObsTerm(
             func=mdp.distance_to_goal,
-            params={"command_name": "goal_pose"}  # ✅ Matches CommandsCfg
+            params={"command_name": "goal_pose"}  
         )
         
         # Action history
@@ -142,13 +142,13 @@ class CommandsCfg:
     
     goal_pose = mdp.UniformPose2dCommandCfg(
         asset_name="robot",
-        simple_heading=True,  # Always face toward goal
-        resampling_time_range=(1000.0, 1000.0),  # Resample every 10 seconds
-        debug_vis=True,  # Show goal markers
+        simple_heading=True,  
+        resampling_time_range=(1000.0, 1000.0),  
+        debug_vis=False,  
         ranges=mdp.UniformPose2dCommandCfg.Ranges(
-            pos_x=(-4.0, 4.0),  # Safe range: ±4m from center
-            pos_y=(-4.0, 4.0),  # Safe range: ±4m from center
-            heading=(-3.14159, 3.14159),  # Full rotation (unused if simple_heading=True)
+            pos_x=(-4.0, 4.0),  
+            pos_y=(-4.0, 4.0),  
+            heading=(-3.14159, 3.14159),  
         ),
     )
 
@@ -163,12 +163,12 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-4.0, 4.0),   # Spawn anywhere within 8m×8m area (Grid is 10m×10m)
+                "x": (-4.0, 4.0),  
                 "y": (-4.0, 4.0),
-                "yaw": (-3.14159, 3.14159),  # Random orientation
+                "yaw": (-3.14159, 3.14159),  
             },
             "velocity_range": {
-                "x": (0.0, 0.0),     # Start from rest
+                "x": (0.0, 0.0),   
                 "y": (0.0, 0.0),
                 "z": (0.0, 0.0),
                 "roll": (0.0, 0.0),
@@ -316,13 +316,13 @@ class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # General settings
-        self.decimation = 4  # Control frequency: 60Hz / 4 = 15Hz policy updates
-        self.episode_length_s = 120.0  # 120 seconds max episode duration
+        self.decimation = 4  
+        self.episode_length_s = 40  
         
         # Viewer settings
-        self.viewer.eye = (10.0, 10.0, 8.0)  # Camera position for better view of navigation
+        self.viewer.eye = (10.0, 10.0, 8.0)  
         self.viewer.lookat = (0.0, 0.0, 0.0)
         
         # Simulation settings
         self.sim.dt = 1 / 60  # 60 Hz physics simulation
-        self.sim.render_interval = self.decimation  # Render every decimation steps
+        self.sim.render_interval = self.decimation 

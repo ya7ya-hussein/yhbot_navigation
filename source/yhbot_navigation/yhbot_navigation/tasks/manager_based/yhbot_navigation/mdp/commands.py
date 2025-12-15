@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
+import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -45,7 +45,6 @@ class UniformPose2dCommand(CommandTerm):
         self.robot: Articulation = env.scene[cfg.asset_name]
 
         # Create buffers to store command
-        # Command: [pos_x, pos_y, heading]
         self.pos_command_w = torch.zeros(env.num_envs, 2, device=env.device)
         self.heading_command_w = torch.zeros(env.num_envs, device=env.device)
 
@@ -73,6 +72,54 @@ class UniformPose2dCommand(CommandTerm):
     Implementation specific functions.
     """
 
+    def _resample_command(self, env_ids: Sequence[int]):
+        """Resample goal positions for specified environments.
+
+        Args:
+            env_ids: Environment indices to resample commands for.
+        """
+        # Get number of environments to resample
+        num_envs = len(env_ids)
+        
+        # Sample random 2D positions in LOCAL environment frame
+        pos_local = torch.zeros(num_envs, 2, device=self.pos_command_w.device)
+        
+        # Sample x position in local frame
+        pos_local[:, 0] = torch.rand(num_envs, device=self.pos_command_w.device) * \
+                        (self.cfg.ranges.pos_x[1] - self.cfg.ranges.pos_x[0]) + \
+                        self.cfg.ranges.pos_x[0]
+        
+        # Sample y position in local frame
+        pos_local[:, 1] = torch.rand(num_envs, device=self.pos_command_w.device) * \
+                        (self.cfg.ranges.pos_y[1] - self.cfg.ranges.pos_y[0]) + \
+                        self.cfg.ranges.pos_y[0]
+        
+        # CRITICAL: Transform from local frame to world frame by adding environment origins
+        env_origins = self._env.scene.env_origins[env_ids, :2]  
+        self.pos_command_w[env_ids] = pos_local + env_origins
+        
+        # Sample heading
+        if self.cfg.simple_heading:
+            # Simple heading: point towards the goal from current position
+            robot_pos = self.robot.data.root_pos_w[env_ids, :2]
+            direction = self.pos_command_w[env_ids] - robot_pos
+            self.heading_command_w[env_ids] = torch.atan2(direction[:, 1], direction[:, 0])
+        else:
+            # Random heading within specified range
+            self.heading_command_w[env_ids] = torch.rand(num_envs, device=self.heading_command_w.device) * \
+                                            (self.cfg.ranges.heading[1] - self.cfg.ranges.heading[0]) + \
+                                            self.cfg.ranges.heading[0]
+
+    def _update_command(self):
+        """Update the command (required abstract method implementation).
+        
+        This method is called by the base CommandTerm class.
+        For static goals that don't change until resampled, this can be empty.
+        """
+        # For static navigation goals, nothing needs to be updated here
+        # The goals only change when _resample_command() is called
+        pass
+
     def _update_metrics(self):
         """Update the command metrics based on current state."""
         # Get current robot position in world frame
@@ -88,73 +135,42 @@ class UniformPose2dCommand(CommandTerm):
         heading_error = torch.atan2(torch.sin(heading_error), torch.cos(heading_error))
         self.metrics["error_heading"] = torch.abs(heading_error)
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        """Resample goal positions for specified environments.
-
-        Args:
-            env_ids: Environment indices to resample commands for.
-        """
-        # Sample random positions within the specified range
-        self.pos_command_w[env_ids, 0] = torch.rand(
-            len(env_ids), device=self.pos_command_w.device
-        ) * (self.cfg.ranges.pos_x[1] - self.cfg.ranges.pos_x[0]) + self.cfg.ranges.pos_x[0]
-        
-        self.pos_command_w[env_ids, 1] = torch.rand(
-            len(env_ids), device=self.pos_command_w.device
-        ) * (self.cfg.ranges.pos_y[1] - self.cfg.ranges.pos_y[0]) + self.cfg.ranges.pos_y[0]
-
-        # Sample heading
-        if self.cfg.simple_heading:
-            # Simple heading: point towards the goal from current position
-            robot_pos = self.robot.data.root_pos_w[env_ids, :2]
-            direction = self.pos_command_w[env_ids] - robot_pos
-            self.heading_command_w[env_ids] = torch.atan2(direction[:, 1], direction[:, 0])
-        else:
-            # Random heading within specified range
-            self.heading_command_w[env_ids] = torch.rand(
-                len(env_ids), device=self.heading_command_w.device
-            ) * (self.cfg.ranges.heading[1] - self.cfg.ranges.heading[0]) + self.cfg.ranges.heading[0]
-
-    def _update_command(self):
-        """Update the command based on current state.
-        
-        For navigation tasks, we don't need to update the command during the episode.
-        The command stays fixed until it's resampled.
-        """
-        pass
-
     def _set_debug_vis_impl(self, debug_vis: bool):
-        """Set debug visualization for goal markers.
+        """Set debug visualization into visualization objects.
 
-        Args:
-            debug_vis: Whether to enable debug visualization.
+        This is the CRITICAL method that Isaac Lab's CommandManager calls to setup visualization.
         """
-        # Create or destroy markers based on flag
-        if debug_vis:
+        # Create or remove visualization markers
+        if debug_vis and self.cfg.goal_pose_visualizer_cfg is not None:
             if not hasattr(self, "goal_visualizer"):
-                # Create goal marker (sphere)
+                # Create the goal pose visualizer
                 self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-            # Set visibility
-            self.goal_visualizer.set_visibility(True)
         else:
             if hasattr(self, "goal_visualizer"):
-                self.goal_visualizer.set_visibility(False)
+                # Remove the visualizer
+                delattr(self, "goal_visualizer")
 
     def _debug_vis_callback(self, event):
-        """Callback for debug visualization."""
-        # Check if scene still exists (prevents shutdown errors)
-        if not hasattr(self._env, "scene") or self._env.scene is None:
-            return
+        """Callback for debug visualization.
+        
+        This method is called by Isaac Lab's CommandManager to update visualization markers.
+        """
+        # Update goal visualization markers
+        if hasattr(self, "goal_visualizer"):
+            # Create 3D positions for visualization (add z=0.2 for height above ground)
+            goal_pos_3d = torch.cat([
+                self.pos_command_w,
+                torch.ones(self._env.num_envs, 1, device=self.pos_command_w.device) * 0.2
+            ], dim=-1)
             
-        # Update marker positions
-        self._goal_markers.visualize(
-            translations=self.pos_command_w[:, :3],
-            orientations=self.heading_command_w,
-            scales=torch.ones(self._env.num_envs, 1, device=self.pos_command_w.device) * 0.2
-        )
-    """
-    Helper functions.
-    """
+            # Create quaternions from heading angles
+            goal_quat = self._quat_from_yaw(self.heading_command_w)
+            
+            # Visualize the markers
+            self.goal_visualizer.visualize(
+                translations=goal_pos_3d,
+                orientations=goal_quat
+            )
 
     def _compute_heading(self, quat: torch.Tensor) -> torch.Tensor:
         """Extract yaw angle (heading) from quaternion.
