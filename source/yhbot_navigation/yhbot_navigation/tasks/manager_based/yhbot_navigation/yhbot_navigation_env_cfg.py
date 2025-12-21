@@ -20,10 +20,6 @@ from isaaclab.utils import configclass
 
 from . import mdp
 
-##
-# Pre-defined configs
-##
-
 # Import YHBot robot configuration from assets folder
 from .assets.yh_bot_cfg import YHBOT_CFG  
 
@@ -31,13 +27,12 @@ from .assets.yh_bot_cfg import YHBOT_CFG
 ##
 # Scene definition
 ##
-1000000
 
 @configclass
 class YhbotNavigationSceneCfg(InteractiveSceneCfg):
     """Configuration for YHBot navigation scene (Grid environment)."""
 
-    # Ground plane - simple flat terrain for Grid environment
+    # Ground plane 
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
@@ -47,13 +42,13 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
     # YHBot differential drive robot
     robot: ArticulationCfg = YHBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Lighting - dome light for uniform illumination
+    # Lighting 
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=3000.0),
     )
 
-    # LiDAR sensor - 360 rays, 360Â° coverage, 10m range
+    # LiDAR sensor
     lidar = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/chassis_link",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.2)),
@@ -70,13 +65,14 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/ground"],
     )
 
-    # Contact sensor - for collision detection
-    contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*",
-        update_period=0.0,
-        history_length=1,
-        track_air_time=False,
-    )
+    # # Contact sensor - for collision detection
+    # contact_sensor = ContactSensorCfg(
+    #     prim_path="{ENV_REGEX_NS}/Robot/.*",
+    #     update_period=0.0,
+    #     history_length=1,
+    #     track_air_time=False,
+    #     filter_prim_paths_expr=["/World/ground"],
+    # )
 
 
 ##
@@ -85,11 +81,9 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class ActionsCfg:
-    """Action specifications for the MDP."""
-    
+class ActionsCfg:    
     # Direct wheel velocity control: 2D action [left_wheel_vel, right_wheel_vel]
-    # Agent learns to control wheels directly (differential drive kinematics implicit in learning)
+    # Agent learns to control wheels directly
     joint_velocity = mdp.JointVelocityActionCfg(
         asset_name="robot",
         joint_names=["middle_left_wheel_joint", "middle_right_wheel_joint"],
@@ -100,13 +94,11 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
-
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # LiDAR observations - 360 distance measurements
+        # LiDAR observations
         lidar = ObsTerm(
             func=mdp.lidar_obs,
             params={"sensor_cfg": SceneEntityCfg("lidar")}
@@ -138,16 +130,14 @@ class ObservationsCfg:
 
 @configclass
 class CommandsCfg:
-    """Command terms for the MDP."""
-    
     goal_pose = mdp.UniformPose2dCommandCfg(
         asset_name="robot",
         simple_heading=True,  
         resampling_time_range=(1000.0, 1000.0),  
         debug_vis=False,  
         ranges=mdp.UniformPose2dCommandCfg.Ranges(
-            pos_x=(-4.0, 4.0),  
-            pos_y=(-4.0, 4.0),  
+            pos_x=(-10.0, 10.0),  
+            pos_y=(-10.0, 10.0),  
             heading=(-3.14159, 3.14159),  
         ),
     )
@@ -155,16 +145,14 @@ class CommandsCfg:
 
 @configclass
 class EventCfg:
-    """Configuration for events."""
-    
-    # On reset: Randomize robot starting pose
+    # Randomize robot starting pose
     reset_robot_pose = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "pose_range": {
-                "x": (-4.0, 4.0),  
-                "y": (-4.0, 4.0),
+                "x": (-10.0, 10.0),  
+                "y": (-10.0, 10.0),
                 "yaw": (-3.14159, 3.14159),  
             },
             "velocity_range": {
@@ -181,114 +169,61 @@ class EventCfg:
 
 
 @configclass
-class RewardsCfg:
-    """Reward terms for the MDP."""
-    
-    # 1. PRIMARY: Goal Reached - Large bonus when reaching goal
+class RewardsCfg:    
     goal_reached = RewTerm(
         func=mdp.goal_reached_bonus,
-        weight=500.0,
+        weight=500.0,  
         params={"command_name": "goal_pose", "threshold": 0.5}
     )
     
-    # 2. PROGRESS: Continuous reward for moving toward goal
     progress_to_goal = RewTerm(
         func=mdp.progress_to_goal,
         weight=10.0,
         params={"command_name": "goal_pose"}
     )
     
-    # 3. COLLISION: Severe penalty for hitting obstacles (triggers termination)
-    collision = RewTerm(
-        func=mdp.collision_penalty,
-        weight=-100.0,
-        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_sensor")} 
-    )
-    
-    # 4. TIME: Small penalty per step (encourages efficiency)
-    alive_penalty = RewTerm(
-        func=mdp.is_alive,
-        weight=-0.01
-    )
-    
-    # 5. HEADING: Bonus for facing toward goal
     heading_alignment = RewTerm(
         func=mdp.heading_alignment_to_goal,
-        weight=5.0,
+        weight=0.3, 
         params={"command_name": "goal_pose"}
     )
     
-    # 6. SMOOTHNESS: Penalty for jerky actions
-    action_smoothness = RewTerm(
-        func=mdp.action_smoothness_penalty,
-        weight=-0.5
+    # collision = RewTerm(
+    #     func=mdp.collision_penalty,
+    #     weight=-100.0,
+    #     params={"threshold": 10.0, "sensor_cfg": SceneEntityCfg("contact_sensor")}  # ← Changed from 1.0 to 10.0
+    # )
+    
+    alive_penalty = RewTerm(
+        func=mdp.is_alive,
+        weight=-0.01,  
     )
     
-    # 7. ORIENTATION: Penalty for tilting (keep robot upright)
-    # Optional - uncomment if robot tips over easily
-    # orientation_penalty = RewTerm(
-    #     func=mdp.orientation_penalty,
-    #     weight=-1.0
-    # )
-    
-    # 8. VELOCITY: Penalty for excessive speed
-    # Optional - uncomment if robot moves too fast
-    # velocity_penalty = RewTerm(
-    #     func=mdp.linear_velocity_penalty,
-    #     weight=-0.1
-    # )
-    
-    # 9. ANGULAR VELOCITY: Penalty for excessive spinning
-    # Optional - uncomment if robot spins too much
-    # angular_penalty = RewTerm(
-    #     func=mdp.angular_velocity_penalty,
-    #     weight=-0.1
-    # )
-
+    action_rate = RewTerm(
+        func=mdp.action_rate_l2,
+        weight=-0.01,
+    )
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
     
-    # 1. TIME OUT: Maximum episode duration (120 seconds)
+    # TIME OUT
     time_out = DoneTerm(
         func=mdp.time_out,
         time_out=True
     )
     
-    # 2. GOAL REACHED: Success termination (distance < 0.5m)
+    # GOAL REACHED: Success termination 
     goal_reached = DoneTerm(
         func=mdp.is_goal_reached,
         params={"command_name": "goal_pose", "threshold": 0.5}
     )
     
-    # 3. COLLISION: Failure termination (contact force > threshold)
-    collision = DoneTerm(
-        func=mdp.is_collided,
-        params={"threshold": 1.0, "sensor_cfg": SceneEntityCfg("contact_sensor")}
-    )
-    
-    # 4. ROBOT FLIPPED: Failure termination (optional - if robot can flip)
-    # Uncomment if your robot can tip over
-    # robot_flipped = DoneTerm(
-    #     func=mdp.is_robot_flipped,
-    #     params={"threshold": 0.5}
+    # # 3. COLLISION: Failure termination (contact force > threshold)
+    # collision = DoneTerm(
+    #     func=mdp.is_collided,
+    #     params={"threshold": 10.0, "sensor_cfg": SceneEntityCfg("contact_sensor")}  # ← Changed from 1.0 to 10.0
     # )
-    
-    # 5. OUT OF BOUNDS: Failure termination (optional - for bounded environments)
-    # Uncomment if you want to enforce boundaries
-    # out_of_bounds = DoneTerm(
-    #     func=mdp.is_out_of_bounds,
-    #     params={"bounds": (-5.0, 5.0, -5.0, 5.0)}  # (min_x, max_x, min_y, max_y)
-    # )
-    
-    # 6. STUCK: Failure termination (optional - if robot gets stuck)
-    # Uncomment if you want to detect stuck robots
-    # stuck = DoneTerm(
-    #     func=mdp.is_stuck,
-    #     params={"threshold": 0.01, "time_threshold": 5.0}
-    # )
-
 
 ##
 # Environment configuration
@@ -297,10 +232,10 @@ class TerminationsCfg:
 
 @configclass
 class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for YHBot navigation environment (Grid)."""
+    """Configuration for YHBot navigation environment"""
     
     # Scene settings
-    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=8192, env_spacing=25.0)
     
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -317,12 +252,12 @@ class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # General settings
         self.decimation = 4  
-        self.episode_length_s = 40  
+        self.episode_length_s = 50
         
         # Viewer settings
-        self.viewer.eye = (10.0, 10.0, 8.0)  
+        self.viewer.eye = (20.0, 20.0, 15.0) 
         self.viewer.lookat = (0.0, 0.0, 0.0)
         
         # Simulation settings
-        self.sim.dt = 1 / 60  # 60 Hz physics simulation
+        self.sim.dt = 1 / 60  
         self.sim.render_interval = self.decimation 

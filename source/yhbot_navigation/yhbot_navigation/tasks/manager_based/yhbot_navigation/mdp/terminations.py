@@ -19,70 +19,50 @@ if TYPE_CHECKING:
 
 
 def is_goal_reached(
-    env: ManagerBasedRLEnv,
+    env: "ManagerBasedRLEnv",
     command_name: str = "goal_pose",
     threshold: float = 0.5,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> torch.Tensor:
-    """Terminate episode when robot reaches goal.
     
-    Returns True when distance to goal < threshold.
-    This is a SUCCESS termination.
+) -> torch.Tensor:
+    """Termination condition when goal is reached.
     
     Args:
-        env: The environment.
-        command_name: Name of the goal command.
-        threshold: Distance threshold to consider goal reached (in meters).
-        asset_cfg: Robot asset configuration.
-        
+        env: The environment instance.
+        command_name: Name of the command term for goal position.
+        threshold: Distance threshold for goal reached.
+    
     Returns:
-        Boolean tensor of shape (num_envs,). True = terminate episode.
+        Boolean tensor of shape (num_envs,) indicating termination.
     """
-    # Get goal position from command manager
-    goal_command = env.command_manager.get_command(command_name)
-    goal_pos_w = goal_command[:, :2]  
+    robot_pos = env.scene["robot"].data.root_pos_w[:, :2]
+    command = env.command_manager.get_command(command_name)
+    goal_pos = command[:, :2]
     
-    # Get robot position
-    robot: Articulation = env.scene[asset_cfg.name]
-    robot_pos_w = robot.data.root_pos_w[:, :2]  
-    
-    # Compute distance to goal
-    distance = torch.norm(goal_pos_w - robot_pos_w, dim=-1)
-    
-    # Return True if within threshold (terminate episode)
+    distance = torch.norm(goal_pos - robot_pos, dim=-1)
     return distance < threshold
 
 
 def is_collided(
-    env: ManagerBasedRLEnv,
+    env: "ManagerBasedRLEnv",
     threshold: float = 1.0,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_sensor"),
+    sensor_cfg: "SceneEntityCfg" = None,
 ) -> torch.Tensor:
-    """Terminate episode when collision is detected.
-    
-    Returns True when contact force > threshold.
-    This is a FAILURE termination.
+    """Termination condition when collision occurs.
     
     Args:
-        env: The environment.
-        threshold: Contact force threshold to consider collision (in Newtons).
-        sensor_cfg: Contact sensor configuration.
-        
+        env: The environment instance.
+        threshold: Force threshold for collision detection.
+        sensor_cfg: Configuration for contact sensor.
+    
     Returns:
-        Boolean tensor of shape (num_envs,). True = terminate episode.
+        Boolean tensor of shape (num_envs,) indicating collision.
     """
-    # Get contact sensor
-    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    contact_sensor = env.scene.sensors[sensor_cfg.name]
+    net_forces = contact_sensor.data.net_forces_w_history
+    force_magnitude = torch.norm(net_forces[:, 0, :, :], dim=-1)
+    max_force = torch.max(force_magnitude, dim=-1)[0]
     
-    # Get net contact forces on the robot body
-    net_contact_forces = contact_sensor.data.net_forces_w_history
-    
-    # Compute maximum force magnitude across all bodies
-    force_magnitude = torch.max(torch.norm(net_contact_forces[:, :, 0], dim=-1), dim=1)[0]
-    
-    # Return True if force exceeds threshold (collision detected)
-    return force_magnitude > threshold
-
+    return max_force > threshold
 
 def is_robot_flipped(
     env: ManagerBasedRLEnv,

@@ -197,6 +197,6 @@ class UniformPose2dCommand(CommandTerm):
             Quaternions in (w, x, y, z) format. Shape (num_envs, 4).
         """
         quat = torch.zeros(len(yaw), 4, device=yaw.device)
-        quat[:, 0] = torch.cos(yaw / 2.0)  # w
-        quat[:, 3] = torch.sin(yaw / 2.0)  # z
+        quat[:, 0] = torch.cos(yaw / 2.0)  
+        quat[:, 3] = torch.sin(yaw / 2.0)  
         return quat

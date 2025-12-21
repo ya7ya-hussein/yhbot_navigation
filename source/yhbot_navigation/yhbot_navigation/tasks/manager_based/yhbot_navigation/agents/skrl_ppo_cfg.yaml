@@ -1,10 +1,9 @@
 seed: 42
 
 
-# Models are instantiated using skrl's model instantiator utility
 models:
   separate: False
-  policy:  # see gaussian_model parameters
+  policy:  
     class: GaussianMixin
     clip_actions: False
     clip_log_std: True
@@ -14,7 +13,7 @@ models:
     network:
       - name: net
         input: OBSERVATIONS 
-        layers: [128, 128, 64] 
+        layers: [256, 256, 128] 
         activations: elu
     output: ACTIONS
   value:  
@@ -23,7 +22,7 @@ models:
     network:
       - name: net
         input: OBSERVATIONS 
-        layers: [128, 128, 64] 
+        layers: [256, 256, 128] 
         activations: elu
     output: ONE
 
@@ -34,18 +33,18 @@ memory:
   memory_size: -1  
 
 
-# PPO agent configuration (field names are from PPO_DEFAULT_CONFIG)
+# PPO agent configuration 
 agent:
   class: PPO
-  rollouts: 32 
-  learning_epochs: 5 
-  mini_batches: 8 
+  rollouts: 24
+  learning_epochs: 5
+  mini_batches: 4
   discount_factor: 0.99
   lambda: 0.95
-  learning_rate: 3.0e-04 
+  learning_rate: 3.0e-4
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
-    kl_threshold: 0.008 
+    kl_threshold: 0.01
   state_preprocessor: RunningStandardScaler 
   state_preprocessor_kwargs: null 
   value_preprocessor: RunningStandardScaler
@@ -56,11 +55,11 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.01 
-  value_loss_scale: 2.0 
+  entropy_loss_scale: 0.01
+  value_loss_scale: 1.0 
   kl_threshold: 0.0
-  rewards_shaper_scale: 0.1 
-  time_limit_bootstrap: False 
+  rewards_shaper_scale: 1.0 
+  time_limit_bootstrap: True 
   # logging and checkpoint
   experiment:
     directory: "yhbot_navigation"
@@ -72,5 +71,5 @@ agent:
 # Sequential trainer
 trainer:
   class: SequentialTrainer
-  timesteps: 5000000
+  timesteps: 3000000
   environment_info: log
