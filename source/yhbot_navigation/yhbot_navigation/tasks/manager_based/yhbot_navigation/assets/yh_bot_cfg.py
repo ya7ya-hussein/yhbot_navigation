@@ -9,7 +9,7 @@ _YHBOT_USD_PATH = os.path.join(os.path.dirname(__file__), "yh_bot_flattened.usd"
 YHBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_YHBOT_USD_PATH,
-        # activate_contact_sensors=True,
+        activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=5.0,
@@ -24,10 +24,10 @@ YHBOT_CFG = ArticulationCfg(
             sleep_threshold=0.005,
             stabilization_threshold=0.001,
         ),
-        # collision_props=sim_utils.CollisionPropertiesCfg(
-        #     contact_offset=0.02,
-        #     rest_offset=0.0,
-        # ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            contact_offset=0.02,
+            rest_offset=0.0,
+        ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.28),

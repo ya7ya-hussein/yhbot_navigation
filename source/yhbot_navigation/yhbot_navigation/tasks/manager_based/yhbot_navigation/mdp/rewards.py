@@ -17,47 +17,18 @@ if TYPE_CHECKING:
 
 
 class progress_to_goal(ManagerTermBase):
-    """
-    Reward for reducing distance to goal (progress reward).
-    
-    This is a STATEFUL reward that tracks previous distance using the correct
-    Isaac Lab pattern: inheriting from ManagerTermBase.
-    
-    Returns:
-    - Positive value when robot gets closer to goal
-    - Negative value when robot moves away from goal
-    - Zero on first step of episode or after reset
-    
-    Official Pattern Reference:
-    - isaaclab/envs/mdp/rewards.py :: is_terminated_term
-    - isaaclab/envs/mdp/curriculums.py :: modify_reward_weight
-    """
-
     def __init__(self, cfg: RewardTermCfg, env: "ManagerBasedRLEnv"):
-        """Initialize the progress reward term.
         
-        Args:
-            cfg: The reward term configuration.
-            env: The environment instance.
-        """
         super().__init__(cfg, env)
         
         # Get command name from params
         self._command_name = cfg.params.get("command_name", "goal_pose")
         
         # Initialize previous distance buffer for all environments
-        # This is the CORRECT way to store stateful data in Isaac Lab
         self._prev_distance = torch.zeros(env.num_envs, device=env.device)
         self._initialized = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
     def reset(self, env_ids: torch.Tensor | None = None) -> None:
-        """Reset the term for specific environments.
-        
-        This method is called automatically by Isaac Lab when environments reset.
-        
-        Args:
-            env_ids: Environment indices to reset. If None, reset all.
-        """
         if env_ids is None:
             self._prev_distance.zero_()
             self._initialized.zero_()
@@ -70,15 +41,6 @@ class progress_to_goal(ManagerTermBase):
         env: "ManagerBasedRLEnv",
         command_name: str = "goal_pose",
     ) -> torch.Tensor:
-        """Compute the progress reward.
-        
-        Args:
-            env: The environment instance.
-            command_name: Name of the command term for goal position.
-            
-        Returns:
-            Tensor of shape (num_envs,) with distance reduction in meters.
-        """
         # Get robot position (world frame, xy only)
         robot_pos = env.scene["robot"].data.root_pos_w[:, :2]  # [N, 2]
         
@@ -102,7 +64,6 @@ class progress_to_goal(ManagerTermBase):
         self._initialized[:] = True
         
         return progress
-
 
 class potential_field_progress(ManagerTermBase):
     """
@@ -161,16 +122,12 @@ def goal_reached_bonus(
     command_name: str = "goal_pose",
     threshold: float = 0.5,
 ) -> torch.Tensor:
-    """Binary reward when robot reaches the goal.
     
-    This is STATELESS - no previous values needed, so simple function is fine.
-    """
     robot_pos = env.scene["robot"].data.root_pos_w[:, :2]
     command = env.command_manager.get_command(command_name)
     goal_pos = command[:, :2]
     distance = torch.norm(goal_pos - robot_pos, dim=-1)
     return (distance < threshold).float()
-
 
 def heading_alignment_to_goal(
     env: "ManagerBasedRLEnv",
@@ -199,25 +156,6 @@ def heading_alignment_to_goal(
     alignment = torch.sum(heading_dir * to_goal_dir, dim=-1)
     return alignment
 
-
-# def collision_penalty(
-#     env: "ManagerBasedRLEnv",
-#     threshold: float = 1.0,
-#     sensor_cfg = None,
-# ) -> torch.Tensor:
-#     """Penalty for collisions detected by contact sensor.
-    
-#     This is STATELESS - checks current contacts only.
-#     """
-#     from isaaclab.managers import SceneEntityCfg
-    
-#     contact_sensor = env.scene.sensors[sensor_cfg.name]
-#     net_forces = contact_sensor.data.net_forces_w_history
-#     force_magnitude = torch.norm(net_forces[:, 0, :, :], dim=-1)
-#     max_force = torch.max(force_magnitude, dim=-1)[0]
-#     return (max_force > threshold).float()
-
-
 def distance_to_goal_penalty(
     env: "ManagerBasedRLEnv",
     command_name: str = "goal_pose",
@@ -231,3 +169,69 @@ def distance_to_goal_penalty(
     command = env.command_manager.get_command(command_name)
     goal_pos = command[:, :2]
     return torch.norm(goal_pos - robot_pos, dim=-1)
+
+def collision_penalty(
+    env: "ManagerBasedRLEnv",
+    force_threshold: float = 0.5,
+    velocity_threshold: float = 0.05,
+    action_threshold: float = 0.3,
+    stuck_time_threshold: float = 0.5,
+    chassis_sensor_cfg = None,
+    roof_sensor_cfg = None,
+) -> torch.Tensor:
+    
+    # ========== PART 1: Contact Force Detection ==========
+    
+    # Check chassis
+    chassis_sensor = env.scene[chassis_sensor_cfg.name]
+    chassis_force = chassis_sensor.data.force_matrix_w
+    if chassis_force is not None:
+        chassis_mag = torch.norm(chassis_force, dim=-1)
+        max_chassis = torch.max(chassis_mag.view(env.num_envs, -1), dim=-1)[0]
+        chassis_collision = max_chassis > force_threshold
+    else:
+        chassis_collision = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    
+    # Check roof
+    roof_sensor = env.scene[roof_sensor_cfg.name]
+    roof_force = roof_sensor.data.force_matrix_w
+    if roof_force is not None:
+        roof_mag = torch.norm(roof_force, dim=-1)
+        max_roof = torch.max(roof_mag.view(env.num_envs, -1), dim=-1)[0]
+        roof_collision = max_roof > force_threshold
+    else:
+        roof_collision = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    
+    # Combine contact force detections
+    force_collision = chassis_collision | roof_collision
+    
+    # Get robot velocity
+    robot = env.scene["robot"]
+    lin_vel = robot.data.root_lin_vel_w
+    speed = torch.norm(lin_vel[:, :2], dim=-1)
+    
+    # Get action magnitude
+    action_magnitude = torch.norm(env.action_manager.action, dim=-1)
+    
+    # Initialize stuck counter
+    if not hasattr(env, "_stuck_counter_reward"):
+        env._stuck_counter_reward = torch.zeros(env.num_envs, device=env.device)
+    
+    # Reset counters for fresh episodes
+    fresh_episodes = env.episode_length_buf < 3
+    env._stuck_counter_reward[fresh_episodes] = 0.0
+    
+    # Check stuck conditions
+    is_slow = speed < velocity_threshold
+    is_trying_to_move = action_magnitude > action_threshold
+    is_stuck_condition = is_slow & is_trying_to_move
+    
+    # Update stuck counter
+    env._stuck_counter_reward[is_stuck_condition] += env.step_dt
+    env._stuck_counter_reward[~is_stuck_condition] = 0.0
+    
+    # Stuck if condition persists
+    stuck_collision = env._stuck_counter_reward > stuck_time_threshold
+    
+    # ========== PART 3: Combine ==========
+    return (force_collision | stuck_collision).float()

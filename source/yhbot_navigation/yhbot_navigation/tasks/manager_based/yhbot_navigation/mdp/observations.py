@@ -78,7 +78,7 @@ def goal_position_robot_frame(env: ManagerBasedRLEnv, command_name: str = "goal_
     robot_quat = robot.data.root_quat_w  
     
     # Compute relative position in world frame
-    goal_rel_world = goal_pos_world - robot_pos  # (num_envs, 2)
+    goal_rel_world = goal_pos_world - robot_pos  
     
     # Convert to robot frame using yaw rotation
     # Extract yaw from quaternion

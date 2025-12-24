@@ -73,39 +73,69 @@ class UniformPose2dCommand(CommandTerm):
     """
 
     def _resample_command(self, env_ids: Sequence[int]):
-        """Resample goal positions for specified environments.
-
-        Args:
-            env_ids: Environment indices to resample commands for.
-        """
-        # Get number of environments to resample
+        """Resample goal positions for specified environments with rejection sampling."""
         num_envs = len(env_ids)
+        env_ids_tensor = torch.as_tensor(env_ids, device=self.pos_command_w.device, dtype=torch.long)
+        env_origins = self._env.scene.env_origins[env_ids, :2]
         
-        # Sample random 2D positions in LOCAL environment frame
-        pos_local = torch.zeros(num_envs, 2, device=self.pos_command_w.device)
+        # Obstacle names for rejection sampling
+        obstacle_names = ["obstacle_1", "obstacle_2", "obstacle_3", "obstacle_4", "obstacle_5"]
+        safety_radius = 1.5
+        max_attempts = 50
         
-        # Sample x position in local frame
-        pos_local[:, 0] = torch.rand(num_envs, device=self.pos_command_w.device) * \
-                        (self.cfg.ranges.pos_x[1] - self.cfg.ranges.pos_x[0]) + \
-                        self.cfg.ranges.pos_x[0]
+        # Get obstacle positions for the environments being resampled
+        obstacle_positions = []
+        for obs_name in obstacle_names:
+            if obs_name in self._env.scene.rigid_objects:
+                obs_pos = self._env.scene.rigid_objects[obs_name].data.root_pos_w[env_ids, :2]
+                obstacle_positions.append(obs_pos)
         
-        # Sample y position in local frame
-        pos_local[:, 1] = torch.rand(num_envs, device=self.pos_command_w.device) * \
-                        (self.cfg.ranges.pos_y[1] - self.cfg.ranges.pos_y[0]) + \
-                        self.cfg.ranges.pos_y[0]
+        # Initialize valid mask - all environments need valid goals
+        needs_resample = torch.ones(num_envs, dtype=torch.bool, device=self.pos_command_w.device)
+        final_pos_local = torch.zeros(num_envs, 2, device=self.pos_command_w.device)
         
-        # CRITICAL: Transform from local frame to world frame by adding environment origins
-        env_origins = self._env.scene.env_origins[env_ids, :2]  
-        self.pos_command_w[env_ids] = pos_local + env_origins
+        for attempt in range(max_attempts):
+            if not needs_resample.any():
+                break
+            
+            n_resample = needs_resample.sum().item()
+            
+            # Sample random positions for environments that still need valid goals
+            pos_local = torch.zeros(n_resample, 2, device=self.pos_command_w.device)
+            pos_local[:, 0] = torch.rand(n_resample, device=self.pos_command_w.device) * \
+                            (self.cfg.ranges.pos_x[1] - self.cfg.ranges.pos_x[0]) + self.cfg.ranges.pos_x[0]
+            pos_local[:, 1] = torch.rand(n_resample, device=self.pos_command_w.device) * \
+                            (self.cfg.ranges.pos_y[1] - self.cfg.ranges.pos_y[0]) + self.cfg.ranges.pos_y[0]
+            
+            # Convert to world frame
+            pos_world = pos_local + env_origins[needs_resample]
+            
+            # Check distance to all obstacles
+            valid = torch.ones(n_resample, dtype=torch.bool, device=self.pos_command_w.device)
+            for obs_pos in obstacle_positions:
+                obs_pos_subset = obs_pos[needs_resample]
+                dist = torch.norm(pos_world - obs_pos_subset, dim=-1)
+                valid = valid & (dist > safety_radius)
+            
+            # Update final positions for valid samples
+            resample_indices = torch.where(needs_resample)[0]
+            valid_indices = resample_indices[valid]
+            final_pos_local[valid_indices] = pos_local[valid]
+            needs_resample[valid_indices] = False
+        
+        # Fallback: use environment center for any remaining invalid positions
+        if needs_resample.any():
+            final_pos_local[needs_resample] = 0.0
+        
+        # Set final positions in world frame
+        self.pos_command_w[env_ids] = final_pos_local + env_origins
         
         # Sample heading
         if self.cfg.simple_heading:
-            # Simple heading: point towards the goal from current position
             robot_pos = self.robot.data.root_pos_w[env_ids, :2]
             direction = self.pos_command_w[env_ids] - robot_pos
             self.heading_command_w[env_ids] = torch.atan2(direction[:, 1], direction[:, 0])
         else:
-            # Random heading within specified range
             self.heading_command_w[env_ids] = torch.rand(num_envs, device=self.heading_command_w.device) * \
                                             (self.cfg.ranges.heading[1] - self.cfg.ranges.heading[0]) + \
                                             self.cfg.ranges.heading[0]
