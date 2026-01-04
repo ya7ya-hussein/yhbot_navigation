@@ -1,0 +1,18 @@
+{
+  "session_id": "session_20251226_190451",
+  "start_time": 1766747091.7553043,
+  "end_time": 1766747795.8129148,
+  "counters": {
+    "success": 0,
+    "collision": 0,
+    "timeout": 0,
+    "total_episodes": 0,
+    "total_steps": 0
+  },
+  "episode_history": [],
+  "statistics": {
+    "total_episodes": 0,
+    "success_count": 0,
+    "collision_count": 0
+  }
+}

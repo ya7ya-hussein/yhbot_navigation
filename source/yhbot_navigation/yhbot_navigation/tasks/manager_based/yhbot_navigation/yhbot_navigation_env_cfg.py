@@ -59,8 +59,8 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
         pattern_cfg=patterns.LidarPatternCfg(
             channels=1,
             vertical_fov_range=(0.0, 0.0),
-            horizontal_fov_range=(-179.5, 180.0),
-            horizontal_res=10.0,
+            horizontal_fov_range=(-90.0, 90.0),
+            horizontal_res=3.0,
         ),
         max_distance=10.0,
         drift_range=(0.0, 0.0),
@@ -211,10 +211,10 @@ class CommandsCfg:
         asset_name="robot",
         simple_heading=True,  
         resampling_time_range=(1000.0, 1000.0),  
-        debug_vis=False,  
+        debug_vis=True,  
         ranges=mdp.UniformPose2dCommandCfg.Ranges(
-            pos_x=(-10.0, 10.0),  
-            pos_y=(-10.0, 10.0),  
+            pos_x=(-13.0, 13.0),  
+            pos_y=(-25.0, 25.0),
             heading=(-3.14159, 3.14159),  
         ),
     )
@@ -228,8 +228,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-10.0, 10.0),  
-                "y": (-10.0, 10.0),
+                "x": (-13.0, 13.0),
+                "y": (-25.0, 25.0),
                 "yaw": (-3.14159, 3.14159),  
             },
             "velocity_range": {
@@ -249,7 +249,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-8.0, 8.0), "y": (-8.0, 8.0), "yaw": (0.0, 0.0)},
+            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
             "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
             "asset_cfg": SceneEntityCfg("obstacle_1"),
         },
@@ -259,7 +259,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-8.0, 8.0), "y": (-8.0, 8.0), "yaw": (0.0, 0.0)},
+            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
             "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
             "asset_cfg": SceneEntityCfg("obstacle_2"),
         },
@@ -269,7 +269,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-8.0, 8.0), "y": (-8.0, 8.0), "yaw": (0.0, 0.0)},
+            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
             "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
             "asset_cfg": SceneEntityCfg("obstacle_3"),
         },
@@ -279,7 +279,7 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {"x": (-8.0, 8.0), "y": (-8.0, 8.0), "yaw": (0.0, 0.0)},
+            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
             "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
             "asset_cfg": SceneEntityCfg("obstacle_4"),
         },
@@ -291,7 +291,7 @@ class RewardsCfg:
     goal_reached = RewTerm(
         func=mdp.goal_reached_bonus,
         weight=500.0,  
-        params={"command_name": "goal_pose", "threshold": 0.5}
+        params={"command_name": "goal_pose", "threshold": 0.6}
     )
     
     progress_to_goal = RewTerm(
@@ -311,11 +311,13 @@ class RewardsCfg:
         weight=-100.0,
         params={
             "force_threshold": 0.5,
-            "velocity_threshold": 0.05,
-            "action_threshold": 0.3,
-            "stuck_time_threshold": 0.5,
-            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"),
-            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),
+            "sudden_decel_threshold": 0.25,  
+            "displacement_threshold": 1.0,
+            "angular_velocity_threshold": 0.15,
+            "goal_proximity_threshold": 1.0,
+            "startup_grace_steps": 45, 
+            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"), 
+            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),  
         }
     )
 
@@ -341,7 +343,7 @@ class TerminationsCfg:
     # GOAL REACHED: Success termination 
     goal_reached = DoneTerm(
         func=mdp.is_goal_reached,
-        params={"command_name": "goal_pose", "threshold": 0.5}, 
+        params={"command_name": "goal_pose", "threshold": 0.6}, 
         time_out=False
     )
     
@@ -350,11 +352,13 @@ class TerminationsCfg:
         func=mdp.is_collided,
         params={
             "force_threshold": 0.5,
-            "velocity_threshold": 0.05,
-            "action_threshold": 0.3,
-            "stuck_time_threshold": 0.5,
-            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"),
-            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),
+            "sudden_decel_threshold": 0.25,  
+            "displacement_threshold": 1.0,
+            "angular_velocity_threshold": 0.15,
+            "goal_proximity_threshold": 1.0,
+            "startup_grace_steps": 45, 
+            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"), 
+            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),       
         },
         time_out=False
     )
@@ -368,7 +372,7 @@ class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for YHBot navigation environment"""
     
     # Scene settings
-    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=8192, env_spacing=25.0)
+    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=8192, env_spacing=60.0)
     
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -385,7 +389,7 @@ class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # General settings
         self.decimation = 4  
-        self.episode_length_s = 50
+        self.episode_length_s = 70
         
         # Viewer settings
         self.viewer.eye = (20.0, 20.0, 15.0) 
