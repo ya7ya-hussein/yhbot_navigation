@@ -41,18 +41,18 @@ class progress_to_goal(ManagerTermBase):
         env: "ManagerBasedRLEnv",
         command_name: str = "goal_pose",
     ) -> torch.Tensor:
-        # Get robot position (world frame, xy only)
-        robot_pos = env.scene["robot"].data.root_pos_w[:, :2]  # [N, 2]
+        # Get robot position 
+        robot_pos = env.scene["robot"].data.root_pos_w[:, :2] 
         
         # Get goal position from command
         command = env.command_manager.get_command(self._command_name)
-        goal_pos = command[:, :2]  # [N, 2]
+        goal_pos = command[:, :2] 
         
         # Calculate current distance
         current_distance = torch.norm(goal_pos - robot_pos, dim=-1)
         
-        # Calculate progress (positive = getting closer)
-        # For first step, return 0 (no previous distance to compare)
+        # Calculate progress 
+        # For first step, return 0 
         progress = torch.where(
             self._initialized,
             self._prev_distance - current_distance,
@@ -66,14 +66,6 @@ class progress_to_goal(ManagerTermBase):
         return progress
 
 class potential_field_progress(ManagerTermBase):
-    """
-    Potential field-based progress reward.
-    
-    Uses attractive potential: U = 0.5 * mu * distance²
-    Reward = U_prev - U_curr (decrease in potential = positive reward)
-    
-    This naturally scales reward with distance (larger steps when far, smaller when close).
-    """
 
     def __init__(self, cfg: RewardTermCfg, env: "ManagerBasedRLEnv"):
         super().__init__(cfg, env)
@@ -105,7 +97,7 @@ class potential_field_progress(ManagerTermBase):
         current_distance = torch.norm(goal_pos - robot_pos, dim=-1)
         current_potential = 0.5 * self._mu * current_distance ** 2
         
-        # Reward is decrease in potential (closer = lower potential = positive reward)
+        # Reward is decrease in potential 
         reward = torch.where(
             self._initialized,
             self._prev_potential - current_potential,
@@ -133,10 +125,6 @@ def heading_alignment_to_goal(
     env: "ManagerBasedRLEnv",
     command_name: str = "goal_pose",
 ) -> torch.Tensor:
-    """Reward for facing toward the goal.
-    
-    This is STATELESS - computes from current state only.
-    """
     robot_pos = env.scene["robot"].data.root_pos_w[:, :2]
     robot_quat = env.scene["robot"].data.root_quat_w
     command = env.command_manager.get_command(command_name)
@@ -160,11 +148,6 @@ def distance_to_goal_penalty(
     env: "ManagerBasedRLEnv",
     command_name: str = "goal_pose",
 ) -> torch.Tensor:
-    """Penalty based on current distance to goal.
-    
-    This is STATELESS - just returns current distance.
-    NOTE: Consider using progress_to_goal (stateful) instead for better learning.
-    """
     robot_pos = env.scene["robot"].data.root_pos_w[:, :2]
     command = env.command_manager.get_command(command_name)
     goal_pos = command[:, :2]
@@ -173,75 +156,25 @@ def distance_to_goal_penalty(
 def collision_penalty(
     env: "ManagerBasedRLEnv",
     force_threshold: float = 0.5,
-    sudden_decel_threshold: float = 0.25,
-    displacement_threshold: float = 1.0,
-    angular_velocity_threshold: float = 0.15,
-    goal_proximity_threshold: float = 1.0,
     startup_grace_steps: int = 45,
     chassis_sensor_cfg = None,
     roof_sensor_cfg = None,
 ) -> torch.Tensor:
-    """Collision penalty using same detection logic as termination.
-    
-    Returns 1.0 when collision detected, 0.0 otherwise.
-    Uses identical multi-layer detection as is_collided() termination function.
-    
-    Thresholds based on 200-episode statistical analysis:
-    - sudden_decel_threshold: 0.25 m/s (83% detection, 0.053% false positive)
-    - displacement_threshold: 1.0 m over 2 seconds
-    - angular_velocity_threshold: 0.15 rad/s
-    - goal_proximity_threshold: 1.0 m
-    
-    Args:
-        env: The environment instance.
-        force_threshold: Contact force threshold (N).
-        sudden_decel_threshold: Velocity drop for collision detection (m/s).
-        displacement_threshold: Minimum displacement over 2s (m).
-        angular_velocity_threshold: Minimum angular velocity for turning (rad/s).
-        goal_proximity_threshold: Distance to goal for proximity zone (m).
-        startup_grace_steps: Steps before checking collision (3s at 15Hz).
-        chassis_sensor_cfg: Chassis contact sensor config.
-        roof_sensor_cfg: Roof contact sensor config.
-    
-    Returns:
-        Penalty value (1.0 for collision, 0.0 for no collision).
-    """
-    
-    # ========== STEP 1: Startup Grace Period ==========
     startup_grace = env.episode_length_buf < startup_grace_steps
     
-    # ========== STEP 2: Sudden Deceleration Detection ==========
-    if not hasattr(env, "_prev_velocity_reward"):
-        env._prev_velocity_reward = torch.zeros(env.num_envs, device=env.device)
-
-    robot = env.scene["robot"]
-    lin_vel = robot.data.root_lin_vel_w
-    current_speed = torch.norm(lin_vel[:, :2], dim=-1)
-
-    velocity_change = env._prev_velocity_reward - current_speed
-
-    # Get current action to check if robot was commanding forward motion
-    # Action shape: (num_envs, 2) where [0]=left_wheel, [1]=right_wheel
-    action = env.action_manager.action
-    both_wheels_positive = (action[:, 0] > 0) & (action[:, 1] > 0)
-
-    # Sudden deceleration indicates collision ONLY if robot was commanding forward
-    sudden_collision = (velocity_change > sudden_decel_threshold) & both_wheels_positive
-
-    env._prev_velocity_reward = current_speed.clone()
-    
-    # ========== STEP 3: Contact Force Detection ==========
     chassis_sensor = env.scene[chassis_sensor_cfg.name]
-    chassis_force = chassis_sensor.data.force_matrix_w
+    chassis_force = chassis_sensor.data.net_forces_w
     if chassis_force is not None:
-        chassis_mag = torch.norm(chassis_force, dim=-1)
-        max_chassis = torch.max(chassis_mag.view(env.num_envs, -1), dim=-1)[0]
-        chassis_collision = max_chassis > force_threshold
+
+        chassis_horizontal = torch.norm(chassis_force[:, :, :2], dim=-1) 
+
+        chassis_collision = torch.any(chassis_horizontal > force_threshold, dim=-1)
     else:
         chassis_collision = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
     
+    # Check roof contact
     roof_sensor = env.scene[roof_sensor_cfg.name]
-    roof_force = roof_sensor.data.force_matrix_w
+    roof_force = roof_sensor.data.net_forces_w
     if roof_force is not None:
         roof_mag = torch.norm(roof_force, dim=-1)
         max_roof = torch.max(roof_mag.view(env.num_envs, -1), dim=-1)[0]
@@ -249,62 +182,10 @@ def collision_penalty(
     else:
         roof_collision = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
     
+    # Combine contact detections
     force_collision = chassis_collision | roof_collision
     
-    # ========== STEP 4: Goal Proximity Check ==========
-    robot_pos = robot.data.root_pos_w[:, :2]
-    command = env.command_manager.get_command("goal_pose")
-    goal_pos = command[:, :2]
-    distance_to_goal = torch.norm(goal_pos - robot_pos, dim=-1)
-    
-    near_goal = distance_to_goal < goal_proximity_threshold
-    
-    # ========== STEP 5: Progress Tracking ==========
-    if not hasattr(env, "_distance_history_reward"):
-        env._distance_history_reward = torch.zeros(env.num_envs, 30, device=env.device)
-        env._history_index_reward = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
-    
-    env._distance_history_reward[torch.arange(env.num_envs), env._history_index_reward] = distance_to_goal
-    
-    distance_2s_ago_index = (env._history_index_reward - 29) % 30
-    distance_2s_ago = env._distance_history_reward[torch.arange(env.num_envs), distance_2s_ago_index]
-    
-    env._history_index_reward = (env._history_index_reward + 1) % 30
-    
-    distance_change_2s = distance_to_goal - distance_2s_ago
-    making_progress = distance_change_2s < 0
-    
-    # ========== STEP 6: Net Displacement Check ==========
-    if not hasattr(env, "_position_history_reward"):
-        env._position_history_reward = torch.zeros(env.num_envs, 30, 2, device=env.device)
-        env._position_index_reward = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
-    
-    current_pos = robot_pos.clone()
-    env._position_history_reward[torch.arange(env.num_envs), env._position_index_reward] = current_pos
-    
-    position_2s_ago_index = (env._position_index_reward - 29) % 30
-    position_2s_ago = env._position_history_reward[torch.arange(env.num_envs), position_2s_ago_index]
-    
-    env._position_index_reward = (env._position_index_reward + 1) % 30
-    
-    net_displacement = torch.norm(current_pos - position_2s_ago, dim=-1)
-    is_moving = net_displacement >= displacement_threshold
-    
-    # ========== STEP 7: Turning Check ==========
-    ang_vel = robot.data.root_ang_vel_w
-    yaw_rate = torch.abs(ang_vel[:, 2])
-    is_turning = yaw_rate > angular_velocity_threshold
-    
-    # ========== STEP 8: Combine All Checks ==========
-    immediate_collision = sudden_collision | force_collision
-    
-    stuck_collision = (
-        ~making_progress &
-        ~is_moving &
-        ~is_turning &
-        ~near_goal
-    )
-    
-    collision_detected = (immediate_collision | stuck_collision) & ~startup_grace
+    # Apply startup grace period
+    collision_detected = force_collision & ~startup_grace
     
     return collision_detected.float()

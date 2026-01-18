@@ -22,7 +22,8 @@ from isaaclab.utils import configclass
 
 from . import mdp
 
-# Import YHBot robot configuration from assets folder
+
+# YHBot robot configuration
 from .assets.yh_bot_cfg import YHBOT_CFG  
 
 
@@ -38,9 +39,8 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-10.0, 4.0, 0.0)),
     )
-
 
     # YHBot differential drive robot
     robot: ArticulationCfg = YHBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -51,106 +51,40 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=3000.0),
     )
 
+
     # LiDAR sensor
     lidar = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/chassis_link",
+        prim_path="{ENV_REGEX_NS}/Robot/bcr_bot/bcr_bot/chassis_link",
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.2)),
         ray_alignment="yaw",
         pattern_cfg=patterns.LidarPatternCfg(
             channels=1,
             vertical_fov_range=(0.0, 0.0),
-            horizontal_fov_range=(-90.0, 90.0),
+            horizontal_fov_range=(-90.0, 90.0), 
             horizontal_res=3.0,
         ),
-        max_distance=10.0,
+        max_distance=3.0,
         drift_range=(0.0, 0.0),
         mesh_prim_paths=[
             "/World/ground",
-            "{ENV_REGEX_NS}/obstacle_1",
-            "{ENV_REGEX_NS}/obstacle_2",
-            "{ENV_REGEX_NS}/obstacle_3",
-            "{ENV_REGEX_NS}/obstacle_4",
         ],
         debug_vis=False,
     )
 
-    contact_forces_chassis = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/chassis_link",
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/bcr_bot/bcr_bot/.*",
         update_period=0.0,
         history_length=6,
         debug_vis=False,
-        filter_prim_paths_expr=[
-            "{ENV_REGEX_NS}/obstacle_1",
-            "{ENV_REGEX_NS}/obstacle_2",
-            "{ENV_REGEX_NS}/obstacle_3",
-            "{ENV_REGEX_NS}/obstacle_4",
-        ],
     )
 
     contact_forces_roof = ContactSensorCfg(  
-        prim_path="{ENV_REGEX_NS}/Robot/roof_link",
+        prim_path="{ENV_REGEX_NS}/Robot/bcr_bot/bcr_bot/roof_link",
         update_period=0.0,
         history_length=6,
-        debug_vis=False,
-        filter_prim_paths_expr=[
-            "{ENV_REGEX_NS}/obstacle_1",
-            "{ENV_REGEX_NS}/obstacle_2",
-            "{ENV_REGEX_NS}/obstacle_3",
-            "{ENV_REGEX_NS}/obstacle_4",
-        ],
+        debug_vis=False, 
     )
 
-    # Static obstacles 
-    obstacle_1: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle_1",
-        spawn=sim_utils.CylinderCfg(
-            radius=0.5,
-            height=1.0,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),  
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),  
-            collision_props=sim_utils.CollisionPropertiesCfg(),  
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.3, 0.3)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.51)),
-    )
-
-    obstacle_2: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle_2",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.8, 0.8, 1.0),  
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.3, 0.8, 0.3)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-3.0, 0.0, 0.51)),
-    )
-
-    obstacle_3: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle_3",
-        spawn=sim_utils.CylinderCfg(
-            radius=0.4,  
-            height=1.0,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.3)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3.0, 0.51)),
-    )
-
-    obstacle_4: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle_4",
-        spawn=sim_utils.CylinderCfg(
-            radius=0.4,  
-            height=1.0,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=100.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.3)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -3.0, 0.51)),
-    )
 
 
 ##
@@ -160,7 +94,6 @@ class YhbotNavigationSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ActionsCfg:    
-    # Direct wheel velocity control: 2D action [left_wheel_vel, right_wheel_vel]
     joint_velocity = mdp.JointVelocityActionCfg(
         asset_name="robot",
         joint_names=["middle_left_wheel_joint", "middle_right_wheel_joint"],
@@ -205,7 +138,8 @@ class ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg()
 
-@configclass
+
+@configclass 
 class CommandsCfg:
     goal_pose = mdp.UniformPose2dCommandCfg(
         asset_name="robot",
@@ -220,9 +154,10 @@ class CommandsCfg:
     )
 
 
+
 @configclass
 class EventCfg:
-    # Randomize robot starting pose
+    # Randomize robot starting pose for training
     reset_robot_pose = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -243,48 +178,6 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("robot"),
         },
     )
-
-    # Randomize obstacle positions
-    reset_obstacle_1 = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
-            "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
-            "asset_cfg": SceneEntityCfg("obstacle_1"),
-        },
-    )
-
-    reset_obstacle_2 = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
-            "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
-            "asset_cfg": SceneEntityCfg("obstacle_2"),
-        },
-    )
-
-    reset_obstacle_3 = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
-            "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
-            "asset_cfg": SceneEntityCfg("obstacle_3"),
-        },
-    )
-
-    reset_obstacle_4 = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-11.0, 11.0), "y": (-23.0, 23.0), "yaw": (0.0, 0.0)},
-            "velocity_range": {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0), "roll": (0.0, 0.0), "pitch": (0.0, 0.0), "yaw": (0.0, 0.0)},
-            "asset_cfg": SceneEntityCfg("obstacle_4"),
-        },
-    )
-
 
 @configclass
 class RewardsCfg:    
@@ -309,16 +202,7 @@ class RewardsCfg:
     collision = RewTerm(
         func=mdp.collision_penalty,
         weight=-100.0,
-        params={
-            "force_threshold": 0.5,
-            "sudden_decel_threshold": 0.25,  
-            "displacement_threshold": 1.0,
-            "angular_velocity_threshold": 0.15,
-            "goal_proximity_threshold": 1.0,
-            "startup_grace_steps": 45, 
-            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"), 
-            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),  
-        }
+        params={"force_threshold": 0.5, "startup_grace_steps": 45, "chassis_sensor_cfg": SceneEntityCfg("contact_forces"), "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),},
     )
 
     alive_penalty = RewTerm(
@@ -347,19 +231,10 @@ class TerminationsCfg:
         time_out=False
     )
     
-    # 3. COLLISION: Failure termination (contact force > threshold)
+    # COLLISION: Failure termination 
     collision = DoneTerm(
         func=mdp.is_collided,
-        params={
-            "force_threshold": 0.5,
-            "sudden_decel_threshold": 0.25,  
-            "displacement_threshold": 1.0,
-            "angular_velocity_threshold": 0.15,
-            "goal_proximity_threshold": 1.0,
-            "startup_grace_steps": 45, 
-            "chassis_sensor_cfg": SceneEntityCfg("contact_forces_chassis"), 
-            "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),       
-        },
+        params={"force_threshold": 0.5, "startup_grace_steps": 45, "chassis_sensor_cfg": SceneEntityCfg("contact_forces"), "roof_sensor_cfg": SceneEntityCfg("contact_forces_roof"),},
         time_out=False
     )
 ##
@@ -372,7 +247,7 @@ class YhbotNavigationEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for YHBot navigation environment"""
     
     # Scene settings
-    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=8192, env_spacing=60.0)
+    scene: YhbotNavigationSceneCfg = YhbotNavigationSceneCfg(num_envs=8192, env_spacing=50.0)
     
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()

@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Custom command generators for YHBot navigation task."""
 
 from __future__ import annotations
 
@@ -22,23 +21,10 @@ if TYPE_CHECKING:
 
 
 class UniformPose2dCommand(CommandTerm):
-    """Command term that generates uniform random 2D pose commands for navigation.
-    
-    This command generator samples random (x, y) goal positions within specified ranges
-    and optionally a heading angle. The goals are generated in the world frame and
-    resampled after a specified time interval.
-    """
 
     cfg: UniformPose2dCommandCfg
-    """Configuration for the command generator."""
 
     def __init__(self, cfg: UniformPose2dCommandCfg, env: ManagerBasedRLEnv):
-        """Initialize the command generator.
-
-        Args:
-            cfg: Configuration for the command generator.
-            env: The environment instance.
-        """
         super().__init__(cfg, env)
 
         # Get the robot asset
@@ -53,27 +39,18 @@ class UniformPose2dCommand(CommandTerm):
         self.metrics["error_heading"] = torch.zeros(env.num_envs, device=env.device)
 
     def __str__(self) -> str:
-        """String representation of the command generator."""
         msg = "UniformPose2dCommand:\n"
         msg += f"\tCommand dimension: 3 (x, y, heading)\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         return msg
 
-    """
-    Properties
-    """
 
     @property
     def command(self) -> torch.Tensor:
-        """The desired goal pose command in world frame. Shape is (num_envs, 3)."""
         return torch.cat([self.pos_command_w, self.heading_command_w.unsqueeze(-1)], dim=-1)
 
-    """
-    Implementation specific functions.
-    """
 
     def _resample_command(self, env_ids: Sequence[int]):
-        """Resample goal positions for specified environments with rejection sampling."""
         num_envs = len(env_ids)
         env_ids_tensor = torch.as_tensor(env_ids, device=self.pos_command_w.device, dtype=torch.long)
         env_origins = self._env.scene.env_origins[env_ids, :2]
@@ -90,7 +67,7 @@ class UniformPose2dCommand(CommandTerm):
                 obs_pos = self._env.scene.rigid_objects[obs_name].data.root_pos_w[env_ids, :2]
                 obstacle_positions.append(obs_pos)
         
-        # Initialize valid mask - all environments need valid goals
+        # Initialize valid mask
         needs_resample = torch.ones(num_envs, dtype=torch.bool, device=self.pos_command_w.device)
         final_pos_local = torch.zeros(num_envs, 2, device=self.pos_command_w.device)
         
@@ -141,19 +118,13 @@ class UniformPose2dCommand(CommandTerm):
                                             self.cfg.ranges.heading[0]
 
     def _update_command(self):
-        """Update the command (required abstract method implementation).
-        
-        This method is called by the base CommandTerm class.
-        For static goals that don't change until resampled, this can be empty.
-        """
-        # For static navigation goals, nothing needs to be updated here
         # The goals only change when _resample_command() is called
         pass
 
     def _update_metrics(self):
         """Update the command metrics based on current state."""
         # Get current robot position in world frame
-        robot_pos_w = self.robot.data.root_pos_w[:, :2]  # Only x, y
+        robot_pos_w = self.robot.data.root_pos_w[:, :2]  
         robot_heading_w = self._compute_heading(self.robot.data.root_quat_w)
 
         # Compute position error (Euclidean distance)
@@ -166,10 +137,6 @@ class UniformPose2dCommand(CommandTerm):
         self.metrics["error_heading"] = torch.abs(heading_error)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        """Set debug visualization into visualization objects.
-
-        This is the CRITICAL method that Isaac Lab's CommandManager calls to setup visualization.
-        """
         # Create or remove visualization markers
         if debug_vis and self.cfg.goal_pose_visualizer_cfg is not None:
             if not hasattr(self, "goal_visualizer"):
@@ -181,13 +148,9 @@ class UniformPose2dCommand(CommandTerm):
                 delattr(self, "goal_visualizer")
 
     def _debug_vis_callback(self, event):
-        """Callback for debug visualization.
-        
-        This method is called by Isaac Lab's CommandManager to update visualization markers.
-        """
         # Update goal visualization markers
         if hasattr(self, "goal_visualizer"):
-            # Create 3D positions for visualization (add z=0.2 for height above ground)
+            # Create 3D positions for visualization 
             goal_pos_3d = torch.cat([
                 self.pos_command_w,
                 torch.ones(self._env.num_envs, 1, device=self.pos_command_w.device) * 0.2
@@ -203,29 +166,11 @@ class UniformPose2dCommand(CommandTerm):
             )
 
     def _compute_heading(self, quat: torch.Tensor) -> torch.Tensor:
-        """Extract yaw angle (heading) from quaternion.
-
-        Args:
-            quat: Quaternion tensor in (w, x, y, z) format. Shape (num_envs, 4).
-
-        Returns:
-            Yaw angles in radians. Shape (num_envs,).
-        """
-        # Extract yaw from quaternion
-        # yaw = atan2(2*(w*z + x*y), 1 - 2*(y^2 + z^2))
         w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
         yaw = torch.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
         return yaw
 
     def _quat_from_yaw(self, yaw: torch.Tensor) -> torch.Tensor:
-        """Create quaternion from yaw angle (rotation around z-axis).
-
-        Args:
-            yaw: Yaw angles in radians. Shape (num_envs,).
-
-        Returns:
-            Quaternions in (w, x, y, z) format. Shape (num_envs, 4).
-        """
         quat = torch.zeros(len(yaw), 4, device=yaw.device)
         quat[:, 0] = torch.cos(yaw / 2.0)  
         quat[:, 3] = torch.sin(yaw / 2.0)  

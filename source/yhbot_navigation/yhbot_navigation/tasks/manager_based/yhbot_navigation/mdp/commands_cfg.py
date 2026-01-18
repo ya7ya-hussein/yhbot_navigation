@@ -17,48 +17,26 @@ from .commands import UniformPose2dCommand
 
 @configclass
 class UniformPose2dCommandCfg(CommandTermCfg):
-    """Configuration for uniform 2D pose command generator for navigation.
-    
-    This command generator samples random (x, y) goal positions within specified ranges
-    and optionally a heading angle for navigation tasks.
-    """
-
     class_type: type = UniformPose2dCommand
-    """Class of the command generator term. Default is UniformPose2dCommand."""
 
     asset_name: str = MISSING
-    """Name of the asset in the environment for which the commands are generated."""
 
     simple_heading: bool = True
-    """Whether to use simple heading or not. Default is True.
-    
-    If True, the heading points toward the goal position from the robot's current position.
-    Otherwise, the heading is sampled uniformly from the specified range.
-    """
 
     @configclass
     class Ranges:
-        """Uniform distribution ranges for the position commands."""
 
         pos_x: tuple[float, float] = MISSING
-        """Range for the x position (in m)."""
 
         pos_y: tuple[float, float] = MISSING
-        """Range for the y position (in m)."""
 
         heading: tuple[float, float] = (-3.14159, 3.14159)
-        """Heading range for the position commands (in rad).
-        
-        Used only if :attr:`simple_heading` is False. Default is (-pi, pi).
-        """
 
     ranges: Ranges = MISSING
-    """Distribution ranges for the position commands."""
 
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/goal_pose"
     )
-    """The configuration for the goal pose visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
 
     # Set the scale
     goal_pose_visualizer_cfg.markers["arrow"].scale = (0.2, 0.2, 0.8)

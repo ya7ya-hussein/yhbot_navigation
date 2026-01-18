@@ -4,7 +4,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-_YHBOT_USD_PATH = os.path.join(os.path.dirname(__file__), "yh_bot_flattened.usd")
+_YHBOT_USD_PATH = os.path.join(os.path.dirname(__file__), "yh_bot.usd")
 
 YHBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
