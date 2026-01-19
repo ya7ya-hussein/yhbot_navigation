@@ -180,7 +180,7 @@ python scripts/skrl/play.py \
 
 ## Author
 
-**Yahya Hussein Yahya Alsabahi**
+**Yahya Hussein**
 - LinkedIn: https://www.linkedin.com/in/ya7ya-hussein
 - GitHub: https://github.com/ya7ya-hussein
 - Email: ya7ya-hussein@outlook.com
